@@ -1,0 +1,100 @@
+作为配置中心：
+Data ID、Group在nacos中配置
+Data ID中的alibaba-nacos-config-client：对应客户端的配置spring.cloud.nacos.config.prefix，默认值为${spring.application.name}，即：服务名
+Data ID中的properties：对应客户端的配置spring.cloud.nacos.config.file-extension，默认值为properties
+Group的值DEFAULT_GROUP：对应客户端的配置spring.cloud.nacos.config.group，默认值为DEFAULT_GROUP
+
+
+
+注册中心：
+依赖：
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.0.5.RELEASE</version>
+    <relativePath/> <!-- lookup parent from repository -->
+</parent>
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-dependencies</artifactId>
+            <version>Finchley.SR1</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+            <version>0.2.2.RELEASE</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>1.18.2</version>
+        <optional>true</optional>
+    </dependency>
+</dependencies>
+创建应用主类，并实现一个HTTP接口：
+@EnableDiscoveryClient
+@SpringBootApplication
+public class TestApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(TestApplication.class, args);
+    }
+    @Slf4j
+    @RestController
+    static class TestController {
+        @GetMapping("/hello")
+        public String hello(@RequestParam String name) {
+            log.info("invoked name = " + name);
+            return "hello " + name;
+        }
+    }
+}
+配置服务名称和Nacos地址：
+spring.application.name=alibaba-nacos-discovery-server
+server.port=8001
+spring.cloud.nacos.discovery.server-addr=127.0.0.1:8848  多个nacos服务器采用nginx反向代理
+
+# 加载多个配置
+# 1
+#可以看到，spring.cloud.nacos.config.ext-config配置是一个数组List类型。每个配置中包含三个参数：data-id、group，refresh；
+#前两个不做赘述，与Nacos中创建的配置相互对应，refresh参数控制这个配置文件中的内容时候支持自动刷新，默认情况下，只有默认加载的配置
+#才会自动刷新，对于这些扩展的配置加载内容需要配置该设置时候才会实现自动刷新。
+#spring.cloud.nacos.config.ext-config[0].data-id=actuator.properties
+#spring.cloud.nacos.config.ext-config[0].group=DEFAULT_GROUP
+#spring.cloud.nacos.config.ext-config[0].refresh=true
+#spring.cloud.nacos.config.ext-config[1].data-id=log.properties
+#spring.cloud.nacos.config.ext-config[1].group=DEFAULT_GROUP
+#spring.cloud.nacos.config.ext-config[1].refresh=true
+
+# 2
+#spring.cloud.nacos.config.shared-dataids参数用来配置多个共享配置的Data Id，多个的时候用用逗号分隔
+#spring.cloud.nacos.config.refreshable-dataids参数用来定义哪些共享配置的Data Id在配置变化时，应用中可以动态刷新，
+# 多个Data Id之间用逗号隔开。如果没有明确配置，默认情况下所有共享配置都不支持动态刷新
+spring.cloud.nacos.config.shared-dataids=actuator.properties,log.properties
+spring.cloud.nacos.config.refreshable-dataids=actuator.properties,log.properties
+
+# 配置加载的优先级
+#当我们加载多个配置的时候，如果存在相同的key时，我们需要深入了解配置加载的优先级关系。
+#在使用Nacos配置的时候，主要有以下三类配置：
+# A<B<C
+#A: 通过spring.cloud.nacos.config.shared-dataids定义的共享配置
+#B: 通过spring.cloud.nacos.config.ext-config[n]定义的加载配置
+#C: 通过内部规则（spring.cloud.nacos.config.prefix、spring.cloud.nacos.config.file-extension、spring.cloud.nacos.config.group这几个参数）
+# 拼接出来的配置

@@ -1,0 +1,35 @@
+注解实现aop:
+1、定义注解
+@Target(METHOD)
+@Retention(RUNTIME)
+public @interface MetricTime {
+    String value();
+}
+2、在需要切面的地方使用注解
+@Component
+public class UserService {
+    // 监控register()方法性能:
+    @MetricTime("register")
+    public User register(String email, String password, String name) {
+        ...
+    }
+    ...
+}
+3、编写注解处理、AOP类
+@Aspect
+@Component
+public class MetricAspect {
+    @Around("@annotation(metricTime)")
+    public Object metric(ProceedingJoinPoint joinPoint, MetricTime metricTime) throws Throwable {
+        String name = metricTime.value();
+        long start = System.currentTimeMillis();
+        try {
+            return joinPoint.proceed();
+        } finally {
+            long t = System.currentTimeMillis() - start;
+            // 写入日志或发送至JMX:
+            System.err.println("[Metrics] " + name + ": " + t + "ms");
+        }
+    }
+}
+注意metric()方法标注了@Around("@annotation(metricTime)")，它的意思是，符合条件的目标方法是带有@MetricTime注解的方法，因为metric()方法参数类型是MetricTime（注意参数名是metricTime不是MetricTime），我们通过它获取性能监控的名称。

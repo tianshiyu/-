@@ -1,0 +1,48 @@
+
+session:
+HttpSession session = req.getSession();
+session.setAttribute("user", name);
+
+在Servlet中第一次调用req.getSession()时，Servlet容器自动创建一个Session ID，然后通过一个名为JSESSIONID的Cookie发送给浏览器
+
+
+cookie:
+// 创建一个新的Cookie:
+Cookie cookie = new Cookie("lang", lang);
+// 该Cookie生效的路径范围:
+cookie.setPath("/");
+// 该Cookie有效期:
+cookie.setMaxAge(8640000); // 8640000秒=100天
+// 将该Cookie添加到响应:
+resp.addCookie(cookie);
+
+URL前缀是设置Cookie时的Path；
+Cookie在有效期内；
+Cookie设置了secure时必须以https访问。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

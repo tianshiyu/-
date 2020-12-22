@@ -1,0 +1,86 @@
+
+
+https://www.cnblogs.com/wenjunwei/p/10779450.html
+https://www.jianshu.com/p/931484bb3fdc
+@Cacheable:触发缓存写入。
+@CacheEvict:触发缓存清除。
+@CachePut:更新缓存(不会影响到方法的运行)。         使用返回值更新
+@Caching:重新组合要应用于方法的多个缓存操作。
+@CacheConfig:设置类级别上共享的一些常见缓存设置。
+
+结合redis:
+redis配置:
+redis:
+    host: 127.0.0.1
+    database: 2
+    port: 6379
+    password:
+
+cache配置
+@Configuration
+public class CacheConfig extends CachingConfigurerSupport {
+    @Resource
+    private RedisConnectionFactory factory;
+    /**
+     * 自定义生成redis-key
+     */
+    @Override
+    @Bean
+    public KeyGenerator keyGenerator() {
+        return (o, method, objects) -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append(o.getClass().getName()).append(".");
+            sb.append(method.getName()).append(".");
+            for (Object obj : objects) {
+                sb.append(obj.toString());
+            }
+            return sb.toString();
+        };
+    }
+    @Bean
+    public RedisTemplate<Object, Object> redisTemplate() {
+        RedisTemplate<Object, Object> redisTemplate = new RedisTemplate<>();
+        redisTemplate.setConnectionFactory(factory);
+        GenericJackson2JsonRedisSerializer genericJackson2JsonRedisSerializer = new GenericJackson2JsonRedisSerializer();
+        redisTemplate.setKeySerializer(genericJackson2JsonRedisSerializer);
+        redisTemplate.setValueSerializer(genericJackson2JsonRedisSerializer);
+        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+        redisTemplate.setHashValueSerializer(genericJackson2JsonRedisSerializer);
+        return redisTemplate;
+    }
+    @Bean
+    @Override
+    public CacheResolver cacheResolver() {
+        return new SimpleCacheResolver(cacheManager());
+    }
+    @Bean
+    @Override
+    public CacheErrorHandler errorHandler() {
+        // 用于捕获从Cache中进行CRUD时的异常的回调处理器。
+        return new SimpleCacheErrorHandler();
+    }
+    @Bean
+    @Override
+    public CacheManager cacheManager() {
+        RedisCacheConfiguration config = defaultCacheConfig() // 生成一个默认配置，通过config对象即可对缓存进行自定义配置
+//设置默认过期时间
+                .entryTtl(Duration.ofMinutes(1))
+                .disableCachingNullValues()  // 不缓存空值
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));     
+        // 设置一个初始化的缓存空间set集合
+        Set<String> cacheNames = new HashSet<>();
+        cacheNames.add("menusWithRole");
+        cacheNames.add("allHrs");
+        // 对每个缓存空间应用不同的配置
+        Map<String, RedisCacheConfiguration> configMap = new HashMap<>();
+        configMap.put("allHrs", config.entryTtl(Duration.ofHours(1)));
+        configMap.put("menusWithRole", config.entryTtl(Duration.ofDays(3)));
+        return RedisCacheManager.builder(factory)     // 使用自定义的缓存配置初始化一个cacheManager
+                .initialCacheNames(cacheNames)  // 注意这两句的调用顺序，一定要先调用该方法设置初始化的缓存名，再初始化相关的配置
+                .withInitialCacheConfigurations(configMap)
+                .build();
+//        return RedisCacheManager.builder(factory).cacheDefaults(config).build();
+
+    }
+}
+

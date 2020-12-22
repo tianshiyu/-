@@ -1,0 +1,57 @@
+
+
+下载：
+设置消息头
+response.setHeader("content-disposition","attachment;filename=" + URLEncoder.encode(name, "UTF-8"));
+
+
+
+上传：
+表单中必须enctype="multipart/form-data"
+选择文件 <input type="file" name="filename">
+依赖 commons-io commons-fileupload
+//创建工厂
+DiskFileItemFactory factory = new DiskFileItemFactory();
+//通过工厂创建解析器
+ServletFileUpload fileUpload = new ServletFileUpload(factory);
+//设置upload的编码
+fileUpload.setHeaderEncoding("UTF-8");
+//判断上传表单的类型
+if (!ServletFileUpload.isMultipartContent(request)) {
+    //上传表单为普通表单，则按照传统方式获取数据即可
+    return;
+}
+try {
+	//解析request对象，得到List【装载着上传的全部内容】
+	List<FileItem> list = fileUpload.parseRequest(request);
+	//遍历List，判断装载的内容是普通字段还是上传文件
+	for (FileItem fileItem : list) {
+		//如果是普通输入项
+		if (fileItem.isFormField()) {
+			//得到输入项的名称和值
+			String name = fileItem.getFieldName();
+			String value = fileItem.getString("UTF-8");
+			System.out.println(name + " = " + value);
+		} else {
+			//如果是上传文件
+			//得到上传名称【包括路径名】
+			String fileName = fileItem.getName();
+			System.out.println("上传的文件是："+fileName);
+			InputStream inputStream = fileItem.getInputStream();
+			//得到项目的路径，把上传文件写到项目中
+			String path = this.getServletContext().getRealPath("/WEB-INF/uploadFile");
+			System.out.println(path);
+			FileOutputStream outputStream = new FileOutputStream(path + "\\" + fileName);
+			byte[] bytes = new byte[1024];
+			int len = 0;
+			while ((len = inputStream.read(bytes)) > 0) {
+				outputStream.write(bytes, 0, len);
+			}
+			inputStream.close();
+			outputStream.close();
+			//删除临时文件的数据
+			fileItem.delete();
+			printWriter.println("上传已完成");
+		}
+}
+

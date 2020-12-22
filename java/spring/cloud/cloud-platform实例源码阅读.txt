@@ -1,0 +1,26 @@
+
+nacos注册中心
+
+ace-admin 注册的接口:
+AuthController
+CaptchaController
+ClientController
+OnlineController
+ServiceController
+ElementController
+GateLogController
+GroupController
+MenuController
+UserController
+
+
+AuthServerRunner类设置公钥私钥
+
+
+网关（spring-cloud-starter-gateway）：
+
+
+消费Feign：
+
+
+

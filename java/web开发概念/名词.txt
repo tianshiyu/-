@@ -1,0 +1,16 @@
+PO(persistant object):持久化对象，可以看作是与数据库中的表相映射的java对象。最简单的 PO 就是对应数据库中某个表中的一条记录。
+
+
+VO(view object): 视图对象，用于展示层，它的作用是把某个指定页面（或组件）的所有数据封装起来。
+
+
+BO(business object): 业务对象，主要作用是把业务逻辑封装为一个对象。这个对象可以包括一个或多个其它的对象。
+
+
+POJO ：plain ordinary java object 无规则简单java对象
+一个中间对象，可以转化为PO、DTO、VO。
+1 ．POJO持久化之后==〉PO
+（在运行期，由Hibernate中的cglib动态把POJO转换为PO，PO相对于POJO会增加一些用来管理数据库entity状态的属性和方法。PO对于programmer来说完全透明，由于是运行期生成PO，所以可以支持增量编译，增量调试。）
+2 ．POJO传输过程中==〉DTO
+3 ．POJO用作表示层==〉VO
+PO 和VO都应该属于它。

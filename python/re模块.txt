@@ -1,0 +1,8 @@
+
+问题：
+re.sub 怎么仅替换匹配到内容中的一部分
+
+实现 
+import re
+src = 'everything is alright.'
+re.sub('(every).*?(\\s.*\\.)',r'\1body\2',src) # everybody is alright.

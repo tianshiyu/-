@@ -1,0 +1,11 @@
+
+获取数据库中自增主键值
+在 SQL 映射文件的 insert 标签中添加 useGeneratedKeys="true" 属性与 keyProperty=" " 属性，keyProperty 的值表示的是将获取到的自增主键值赋给 JavaBean 中的某个字段
+
+<insert id="addEmp" parameterType="employee" 
+            useGeneratedKeys="true" keyProperty="id">
+        insert into t_employee(username, gender, email) values (#{username}, #{gender}, #{email})
+    </insert>
+	
+注解方式：
+	@Options(useGeneratedKeys = true, keyProperty = "user.id" (对象.属性), keyColumn = "id")

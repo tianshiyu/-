@@ -1,0 +1,5 @@
+
+
+https://github.com/tporadowski/redis/releases下载安装
+安装目录下使用命令redis-server.exe  redis.windows.conf运行redis
+使用命令redis-server.exe --service-install redis.windows.conf --loglevel verbose添加一个永久服务

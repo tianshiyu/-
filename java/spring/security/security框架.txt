@@ -1,0 +1,200 @@
+实现记住我，重新登录后，访问无权限页面，直接重定向，怎么解决？
+
+<dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-web</artifactId>
+      <version>${spring.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-core</artifactId>
+      <version>${spring.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-config</artifactId>
+      <version>${spring.version}</version>
+    </dependency>
+
+
+http.addFilterBefore(Filter filter,Class<? extends Filter> beforeFilter)
+在beforeFilter前添加一个过滤器，有用于添加验证码登录。
+
+
+登录后取得User对象
+User user = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+//登录处理页面
+.loginProcessingUrl("/signin")  post请求，先于controller
+
+角色继承，上级角色拥有下级角色的所有权限  （在配置时，需要给角色手动加上 ROLE_ 前缀。上面的配置表示 ROLE_admin 自动具备 ROLE_user 的权限。）
+@Bean
+RoleHierarchy roleHierarchy() {
+    RoleHierarchyImpl hierarchy = new RoleHierarchyImpl();
+    hierarchy.setHierarchy("ROLE_admin > ROLE_user");
+    return hierarchy;
+}
+
+流程：
+1、注解@EnableWebSecurity、@EnableGlobalMethodSecurity(securedEnabled = true)（可不用？）
+
+
+
+//数据库
+User 继承 UserDetails类
+UserService 继承 UserDetailsService类
+
+
+
+2、继承WebSecurityConfigurerAdapter类，覆写方法
+@Configuration
+public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+    @Autowired
+    UserService userService;
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+		//用户与角色
+        auth.userDetailsService(userService);
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()//开启登陆配置
+                .antMatchers("/admin/category/all").authenticated()
+                .antMatchers("/admin/**", "/reg").hasRole("超级管理员")//访问/admin/**的URL都需要有超级管理员角色，如果使用.hasAuthority()方法来配置，需要在参数中加上ROLE_,如下.hasAuthority("ROLE_超级管理员")
+                .anyRequest().authenticated()//其他的路径都是登录后即可访问
+                .and()
+				.formLogin()
+                //定义登录页面，未登录时，访问一个需要登录之后才能访问的接口，会自动跳转到该页面
+                .loginPage("/login_page")
+                //登录成功的处理器
+                .successHandler(new AuthenticationSuccessHandler() {
+                    @Override
+                    public void onAuthenticationSuccess(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Authentication authentication) throws IOException, ServletException {
+                        httpServletResponse.setContentType("application/json;charset=utf-8");
+                        PrintWriter out = httpServletResponse.getWriter();
+                        out.write("{\"status\":\"success\",\"msg\":\"登录成功\"}");
+                        out.flush();
+                        out.close();
+                    }
+                })
+                //登录失败的处理器
+                .failureHandler(new AuthenticationFailureHandler() {
+                    @Override
+                    public void onAuthenticationFailure(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, AuthenticationException e) throws IOException, ServletException {
+                        httpServletResponse.setContentType("application/json;charset=utf-8");
+                        PrintWriter out = httpServletResponse.getWriter();
+                        out.write("{\"status\":\"error\",\"msg\":\"登录失败\"}");
+                        out.flush();
+                        out.close();
+                    }
+                })
+                //登录处理页面
+                .loginProcessingUrl("/login")
+                //定义登录时，用户名的 key，默认为 username
+                .usernameParameter("username")
+                //定义登录时，用户密码的 key，默认为 password
+                .passwordParameter("password")
+                //和表单登录相关的接口统统都直接通过
+                .permitAll()
+                .and().logout().permitAll().and().csrf().disable().exceptionHandling().accessDeniedHandler(getAccessDeniedHandler());
+    }
+
+    @Override
+    public void configure(WebSecurity web) throws Exception {
+        //不拦截的请求地址
+        web.ignoring().antMatchers("/blogimg/**", "/index.html", "/static/**");
+    }
+
+    @Bean
+    AccessDeniedHandler getAccessDeniedHandler() {
+        return new AuthenticationAccessDeniedHandler();
+    }
+}
+
+/**
+         * authorizeRequests()  配置路径拦截，表明路径访问所对应的权限，角色，认证信息。
+         * formLogin()          对应表单认证相关的配置
+         * logout()             对应了注销相关的配置
+         * httpBasic()          可以配置basic登录
+         * etc
+         * sessionManagement()  session管理
+         */
+        http
+                .authorizeRequests()
+                    .antMatchers("/resources/**", "/html/login.html", "/html/failure.html").permitAll()
+                    .antMatchers("/admin/**").hasRole("ADMIN")
+                    .antMatchers("/db/**").access("hasRole('ADMIN') and hasRole('DBA')")
+                    /*
+                    anyRequest：任何的请求
+                    authenticated：认证
+                    */
+                    .anyRequest().authenticated()
+                    .and()
+                .formLogin()
+                    .usernameParameter("username")
+                    .passwordParameter("password")
+                    .successForwardUrl("/html/success.html")
+                    .failureForwardUrl("/html/failure.html")
+                    .loginPage("/html/login.html")
+                    .loginProcessingUrl("/login")
+                    .permitAll()
+                    .and()
+                /*
+                // 定义登录认证失败后执行的操作
+                .failureHandler(this.authenticationFailureHandler())
+                // 定义登录认证曾工后执行的操作
+                .successHandler(this.authenticationSuccessHandler());
+                */
+                .logout()
+                    .logoutUrl("/logout")
+                    .logoutSuccessUrl("/html/login.html")
+                    .invalidateHttpSession(true)
+                    .deleteCookies("JSESSIONID")
+                    .permitAll()
+                    .and()
+                .httpBasic()
+                    .disable()
+                // 禁用 CSRF
+                .csrf()
+                    .disable()
+                // session管理
+                .sessionManagement()
+                    .sessionFixation().none().maximumSessions(1);
+
+					
+					
+					
+ssm必需步骤
+3、注册security配置
+import org.springframework.web.WebApplicationInitializer;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+ 
+import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
+ 
+/**
+ * @author Braycep
+ * @date 2019/3/6 15:31
+ */
+public class SecurityWebApplicationInitializer implements WebApplicationInitializer {
+    @Override
+    public void onStartup(ServletContext servletContext) throws ServletException {
+        //2.1创建AnnotationConfigWebApplicationContext
+        AnnotationConfigWebApplicationContext springContext = new AnnotationConfigWebApplicationContext();
+        //2.2spring的配置类  springSecurity的配置类
+        springContext.register(WebSecurityConfig.class);
+    }
+}
+
+4、创建初始化类, 必须的
+import org.springframework.security.web.context.AbstractSecurityWebApplicationInitializer;
+ 
+/**
+ * @author Braycep
+ * @date 2019/3/6 15:44
+ */
+public class SpringSecurityInitializer extends AbstractSecurityWebApplicationInitializer {
+    //只继承就好
+}

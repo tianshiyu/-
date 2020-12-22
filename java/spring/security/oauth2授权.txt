@@ -1,0 +1,156 @@
+OAuth2 协议一共支持 4 种不同的授权模式：
+
+授权码模式：常见的第三方平台登录功能基本都是使用这种模式。
+
+简化模式：简化模式是不需要客户端服务器参与，直接在浏览器中向授权服务器申请令牌（token），一般如果网站是纯静态页面则可以采用这种方式。
+
+密码模式：密码模式是用户把用户名密码直接告诉客户端，客户端使用说这些信息向授权服务器申请令牌（token）。这需要用户对客户端高度信任，例
+如客户端应用和服务提供商就是同一家公司，我们自己做前后端分离登录就可以采用这种模式。
+
+客户端模式：客户端模式是指客户端使用自己的名义而不是用户的名义向服务提供者申请授权，严格来说，客户端模式并不能算作 OAuth 协议要解决的问题的一种解决方案，但是，对于开发者而言，在一些前后端分离应用或者为移动端提供的认证授权服务器上使用这种模式还是非常方便的。
+
+
+
+例： https://www.cnblogs.com/lenve/p/12695733.html
+
+三个服务器：授权、资源、第三方应用
+
+授权：依赖：
+web
+spring cloud security
+spirng cloud OAuth2
+
+security基本配置：
+这段配置的目的，实际上就是配置用户。例如你想用微信登录第三方网站，在这个过程中，你得先登录微信，登录微信就要你的用户名/密码信息，那么我们在这里配置的，其实就是用户的用户名/密码/角色信息。
+@Configuration
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.inMemoryAuthentication()
+                .withUser("sang")
+                .password(new BCryptPasswordEncoder().encode("123"))
+                .roles("admin")
+                .and()
+                .withUser("javaboy")
+                .password(new BCryptPasswordEncoder().encode("123"))
+                .roles("user");
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.csrf().disable().formLogin();
+    }
+}
+
+授权服务：
+@Configuration
+public class AccessTokenConfig {
+    @Bean
+    TokenStore tokenStore() {
+        return new InMemoryTokenStore();
+    }
+}
+@EnableAuthorizationServer
+@Configuration
+public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
+    @Autowired
+    TokenStore tokenStore;
+    @Autowired
+    ClientDetailsService clientDetailsService;
+
+    @Bean
+    AuthorizationServerTokenServices tokenServices() {
+        DefaultTokenServices services = new DefaultTokenServices();
+        services.setClientDetailsService(clientDetailsService);
+        services.setSupportRefreshToken(true);
+        services.setTokenStore(tokenStore);
+        services.setAccessTokenValiditySeconds(60 * 60 * 2);
+        services.setRefreshTokenValiditySeconds(60 * 60 * 24 * 3);
+        return services;
+    }
+
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+        security.checkTokenAccess("permitAll()")
+                .allowFormAuthenticationForClients();
+    }
+
+    @Override
+    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+        clients.inMemory()
+                .withClient("javaboy")
+                .secret(new BCryptPasswordEncoder().encode("123"))
+                .resourceIds("res1")
+                .authorizedGrantTypes("authorization_code","refresh_token")
+                .scopes("all")
+                .redirectUris("http://localhost:8082/index.html");
+    }
+
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.authorizationCodeServices(authorizationCodeServices())
+                .tokenServices(tokenServices());
+    }
+    @Bean
+    AuthorizationCodeServices authorizationCodeServices() {
+        return new InMemoryAuthorizationCodeServices();
+    }
+}
+首先我们提供了一个 TokenStore 的实例，这个是指你生成的 Token 要往哪里存储，我们可以存在 Redis 中，也可以存在内存中，也可以结合 JWT 等等，这里，我们就先把它存在内存中，所以提供一个 InMemoryTokenStore 的实例即可。
+接下来我们创建 AuthorizationServer 类继承自 AuthorizationServerConfigurerAdapter，来对授权服务器做进一步的详细配置，AuthorizationServer 类记得加上 @EnableAuthorizationServer 注解，表示开启授权服务器的自动化配置。
+在 AuthorizationServer 类中，我们其实主要重写三个 configure 方法。
+AuthorizationServerSecurityConfigurer 用来配置令牌端点的安全约束，也就是这个端点谁能访问，谁不能访问。checkTokenAccess 是指一个 Token 校验的端点，这个端点我们设置为可以直接访问（在后面，当资源服务器收到 Token 之后，需要去校验 Token 的合法性，就会访问这个端点）。
+ClientDetailsServiceConfigurer 用来配置客户端的详细信息，在上篇文章中，松哥和大家讲过，授权服务器要做两方面的检验，一方面是校验客户端，另一方面则是校验用户，校验用户，我们前面已经配置了，这里就是配置校验客户端。客户端的信息我们可以存在数据库中，这其实也是比较容易的，和用户信息存到数据库中类似，但是这里为了简化代码，我还是将客户端信息存在内存中，这里我们分别配置了客户端的 id，secret、资源 id、授权类型、授权范围以及重定向 uri。授权类型我在上篇文章中和大家一共讲了四种，四种之中不包含 refresh_token 这种类型，但是在实际操作中，refresh_token 也被算作一种。
+AuthorizationServerEndpointsConfigurer 这里用来配置令牌的访问端点和令牌服务。authorizationCodeServices用来配置授权码的存储，这里我们是存在在内存中，tokenServices 用来配置令牌的存储，即 access_token 的存储位置，这里我们也先存储在内存中。有小伙伴会问，授权码和令牌有什么区别？授权码是用来获取令牌的，使用一次就失效，令牌则是用来获取资源的，如果搞不清楚，建议重新阅读上篇文章恶补一下：做微服务绕不过的 OAuth2，松哥也来和大家扯一扯
+tokenServices 这个 Bean 主要用来配置 Token 的一些基本信息，例如 Token 是否支持刷新、Token 的存储位置、Token 的有效期以及刷新 Token 的有效期等等。Token 有效期这个好理解，刷新 Token 的有效期我说一下，当 Token 快要过期的时候，我们需要获取一个新的 Token，在获取新的 Token 时候，需要有一个凭证信息，这个凭证信息不是旧的 Token，而是另外一个 refresh_token，这个 refresh_token 也是有有效期的。
+
+
+资源服务器:
+依赖：
+web
+spring cloud security
+spirng cloud OAuth2
+@Configuration
+@EnableResourceServer
+public class ResourceServerConfig extends ResourceServerConfigurerAdapter {
+    @Bean
+    RemoteTokenServices tokenServices() {
+        RemoteTokenServices services = new RemoteTokenServices();
+        services.setCheckTokenEndpointUrl("http://localhost:8080/oauth/check_token");
+        services.setClientId("javaboy");
+        services.setClientSecret("123");
+        return services;
+    }
+    @Override
+    public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
+        resources.resourceId("res1").tokenServices(tokenServices());
+    }
+
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/admin/**").hasRole("admin")
+                .anyRequest().authenticated();
+    }
+}
+
+接口：
+@RestController
+public class HelloController {
+    @GetMapping("/hello")
+    public String hello() {
+        return "hello";
+    }
+    @GetMapping("/admin/hello")
+    public String admin() {
+        return "admin";
+    }
+}
+
+
+第三方应用：

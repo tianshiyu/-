@@ -1,0 +1,5 @@
+https://www.cnblogs.com/saule/p/11568442.html
+springcloud更新换代比较快，可能1.5可以使用，到了2.0就不用了。所以做项目或者练习时要看清自己使用的版本。1.5版本使用spring-cloud-starter-eureka-server还是没问题的。2.0以上建议使用 spring-cloud-starter-netflix-eureka-server。springcloud坑比较多，多做笔记多联系。
+
+https://blog.csdn.net/qq32933432/article/details/89375630
+版本对应关系，springboot和springcloud

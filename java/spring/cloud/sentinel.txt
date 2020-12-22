@@ -1,0 +1,14 @@
+# 限流，基本使用
+sentinel:
+  transport:
+    dashboard: localhost:8080 #配置服务器地址
+	
+
+使用Nacos存储限流规则：
+# sentinel dashboard
+spring.cloud.sentinel.transport.dashboard=localhost:8080
+# sentinel datasource nacos ：http://blog.didispace.com/spring-cloud-alibaba-sentinel-2-1/
+spring.cloud.sentinel.datasource.ds.nacos.server-addr=localhost:8848
+spring.cloud.sentinel.datasource.ds.nacos.dataId=${spring.application.name}-sentinel
+spring.cloud.sentinel.datasource.ds.nacos.groupId=DEFAULT_GROUP
+spring.cloud.sentinel.datasource.ds.nacos.rule-type=flow

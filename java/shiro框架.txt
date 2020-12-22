@@ -1,0 +1,508 @@
+pom.xml
+<properties>
+            <shiro.version>1.2.2</shiro.version>
+  　　　　</properties>
+         <dependency>
+            <groupId>org.apache.shiro</groupId>
+            <artifactId>shiro-core</artifactId>
+            <version>${shiro.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.shiro</groupId>
+            <artifactId>shiro-web</artifactId>
+            <version>${shiro.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.shiro</groupId>
+            <artifactId>shiro-ehcache</artifactId>
+            <version>${shiro.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.shiro</groupId>
+            <artifactId>shiro-quartz</artifactId>
+            <version>${shiro.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.shiro</groupId>
+            <artifactId>shiro-spring</artifactId>
+            <version>${shiro.version}</version>
+        </dependency>
+		
+web.xml
+<!-- shiro 安全过滤器 -->
+    <filter>
+        <filter-name>shiroFilter</filter-name>
+        <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+        <async-supported>true</async-supported>
+        <init-param>
+            <param-name>targetFilterLifecycle</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>shiroFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+	
+applicationContext-shiro.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd">
+
+    <!-- 缓存管理器 使用Ehcache实现 -->
+    <bean id="cacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+        <property name="cacheManagerConfigFile" value="classpath:shiro/ehcache.xml"/>
+    </bean>
+
+    <!-- 凭证匹配器 -->
+    <bean id="credentialsMatcher" class="com.lego.shiro.Credentials.RetryLimitHashedCredentialsMatcher">
+        <!-- 使用Spring构造器注入cacheManager -->
+        <constructor-arg ref="cacheManager"/>
+        <!-- 指定散列算法名称 -->
+        <property name="hashAlgorithmName" value="md5"/>
+        <!-- 指定散列迭代的次数 -->
+        <property name="hashIterations" value="2"/>
+        <!-- 是否储存散列后的密码为16进制，需要和生成密码时的一样，默认是base64 -->
+        <property name="storedCredentialsHexEncoded" value="true"/>
+    </bean>
+
+    <!-- Realm实现 -->
+    <bean id="userRealm" class="com.lego.shiro.UserRealm">
+        <!-- 使用credentialsMatcher实现密码验证服务 -->
+        <property name="credentialsMatcher" ref="credentialsMatcher"/>
+        <!-- 是否启用缓存 -->
+        <property name="cachingEnabled" value="true"/>
+        <!-- 是否启用身份验证缓存 -->
+        <property name="authenticationCachingEnabled" value="true"/>
+        <!-- 缓存AuthenticationInfo信息的缓存名称 -->
+        <property name="authenticationCacheName" value="authenticationCache"/>
+        <!-- 是否启用授权缓存，缓存AuthorizationInfo信息 -->
+        <property name="authorizationCachingEnabled" value="true"/>
+        <!-- 缓存AuthorizationInfo信息的缓存名称 -->
+        <property name="authorizationCacheName" value="authorizationCache"/>
+    </bean>
+
+    <!-- 会话ID生成器，用于生成会话的ID-->
+    <bean id="sessionIdGenerator" class="org.apache.shiro.session.mgt.eis.JavaUuidSessionIdGenerator"/>
+
+    <!-- 会话Cookie模板 -->
+    <bean id="sessionIdCookie" class="org.apache.shiro.web.servlet.SimpleCookie">
+        <constructor-arg value="sid"/>
+        <!-- 如果设置为true，则客户端不会暴露给服务端脚本代码，有助于减少某些类型的跨站脚本攻击 -->
+        <property name="httpOnly" value="true"/>
+        <property name="maxAge" value="-1"/><!-- maxAge=-1表示浏览器关闭时失效此Cookie -->
+    </bean>
+    <bean id="rememberMeCookie" class="org.apache.shiro.web.servlet.SimpleCookie">
+        <constructor-arg value="rememberMe"/>
+        <property name="httpOnly" value="true"/>
+        <property name="maxAge" value="2592000"/><!-- 30天 -->
+    </bean>
+
+    <!-- rememberMe管理器 -->
+    <bean id="rememberMeManager" class="org.apache.shiro.web.mgt.CookieRememberMeManager">
+        <!-- cipherKey是加密rememberMe Cookie的密匙，默认AES算法 -->
+        <property name="cipherKey" value="#{T(org.apache.shiro.codec.Base64).decode('4AvVhmFLUs0KTA3Kprsdag==')}"/>
+        <property name="cookie" ref="rememberMeCookie"/>
+    </bean>
+
+    <!-- 会话DAO -->
+    <bean id="sessionDAO" class="org.apache.shiro.session.mgt.eis.EnterpriseCacheSessionDAO">
+        <!-- 设置session缓存的名称，默认就是shiro-activeSessionCache -->
+        <property name="activeSessionsCacheName" value="shiro-activeSessionCache"/>
+        <property name="sessionIdGenerator" ref="sessionIdGenerator"/>
+    </bean>
+
+    <!-- 会话验证调度器 -->
+    <bean id="sessionValidationScheduler" class="org.apache.shiro.session.mgt.quartz.QuartzSessionValidationScheduler">
+        <property name="sessionValidationInterval" value="1800000"/>
+        <property name="sessionManager" ref="sessionManager"/>
+    </bean>
+
+    <!-- 会话管理器 -->
+    <bean id="sessionManager" class="org.apache.shiro.web.session.mgt.DefaultWebSessionManager">
+        <!-- 设置全局会话过期时间：默认30分钟 -->
+        <property name="globalSessionTimeout" value="1800000"/>
+        <!-- 是否自动删除无效会话 -->
+        <property name="deleteInvalidSessions" value="true"/>
+        <!-- 会话验证是否启用 -->
+        <property name="sessionValidationSchedulerEnabled" value="true"/>
+        <!-- 会话验证调度器 -->
+        <property name="sessionValidationScheduler" ref="sessionValidationScheduler"/>
+        <!-- 会话持久化sessionDao -->
+        <property name="sessionDAO" ref="sessionDAO"/>
+        <!-- 是否启用sessionIdCookie，默认是启用的 -->
+        <property name="sessionIdCookieEnabled" value="true"/>
+        <!-- 会话Cookie -->
+        <property name="sessionIdCookie" ref="sessionIdCookie"/>
+    </bean>
+
+    <!-- 安全管理器 -->
+    <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+        <property name="realm" ref="userRealm"/>
+        <property name="sessionManager" ref="sessionManager"/>
+        <property name="cacheManager" ref="cacheManager"/>
+<!--         设置securityManager安全管理器的rememberMeManger -->
+        <property name="rememberMeManager" ref="rememberMeManager"/>
+    </bean>
+
+    <!-- 相当于调用SecurityUtils.setSecurityManager(securityManager) -->
+    <bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+        <property name="staticMethod" value="org.apache.shiro.SecurityUtils.setSecurityManager"/>
+        <property name="arguments" ref="securityManager"/>
+    </bean>
+
+    <!-- 基于Form表单的身份验证过滤器 -->
+    <bean id="formAuthenticationFilter" class="org.apache.shiro.web.filter.authc.FormAuthenticationFilter">
+        <!-- 这两个字段，username和password要和表单中定义的username和password字段名称相同，可以更改，但是表单和XML要对应 -->
+        <property name="usernameParam" value="identifier"/>
+        <property name="passwordParam" value="password"/>
+        <property name="loginUrl" value="/user/userLogin.action"/>
+        <!-- rememberMeParam是rememberMe请求参数名，请求参数是boolean类型，true表示记住我 -->
+        <property name="rememberMeParam" value="rememberMe"/>
+    </bean>
+
+    <!-- Shiro的Web过滤器 -->
+    <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <!-- Shiro的安全管理器，所有关于安全的操作都会经过SecurityManager -->
+        <property name="securityManager" ref="securityManager"/>
+        <!-- 系统认证提交地址，如果用户退出即session丢失就会访问这个页面 -->
+        <property name="loginUrl" value="/user/Lego_Main.action"/>
+        <!-- 登录成功后重定向的地址，不建议配置 -->
+        <!--<property name="successUrl" value="/index.do"/>-->
+        <!-- 权限验证失败跳转的页面，需要配合Spring的ExceptionHandler异常处理机制使用 -->
+        <property name="unauthorizedUrl" value="/user/refuse.action"/>
+        <property name="filters">
+            <util:map>
+                <entry key="authc" value-ref="formAuthenticationFilter"/>
+            </util:map>
+        </property>
+        <!-- 自定义的过滤器链，从上向下执行，一般将`/**`放到最下面 -->
+        <property name="filterChainDefinitions">
+            <value>
+                <!-- 静态资源不拦截 -->
+                /static/** = anon
+                /lib/** = anon
+
+                <!-- 登录页面不拦截 -->
+                /jsp/** = anon
+                /user/*.action = anon
+
+                <!-- Shiro提供了退出登录的配置`logout`，会生成路径为`/logout`的请求地址，访问这个地址即会退出当前账户并清空缓存 -->
+                /user/exit.action = logout
+
+                <!-- user表示身份通过或通过记住我通过的用户都能访问系统 -->
+                /jsp/** = user
+
+                <!-- authc表示访问该地址用户必须身份验证通过，即Subject.isAuthenticated() == true -->
+                /expense/*.action = authc
+
+                <!-- `/**`表示所有请求，表示访问该地址的用户是身份验证通过或RememberMe登录的都可以 -->
+                /** = user
+            </value>
+        </property>
+    </bean>
+
+    <!-- Shiro生命周期处理器-->
+    <bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor"/>
+
+</beans>
+
+
+
+ehcache.xml  缓存
+<?xml version="1.0" encoding="UTF-8"?>
+<ehcache name="shirocache">
+
+    <diskStore path="F:\\cache"/>
+
+    <!-- 登录记录缓存 锁定10分钟 -->
+    <cache name="passwordRetryCache"
+           maxEntriesLocalHeap="2000"
+           eternal="false"
+           timeToIdleSeconds="3600"
+           timeToLiveSeconds="0"
+           overflowToDisk="false"
+           statistics="true">
+    </cache>
+
+    <cache name="authorizationCache"
+           maxEntriesLocalHeap="2000"
+           eternal="false"
+           timeToIdleSeconds="3600"
+           timeToLiveSeconds="0"
+           overflowToDisk="false"
+           statistics="true">
+    </cache>
+
+    <cache name="authenticationCache"
+           maxEntriesLocalHeap="2000"
+           eternal="false"
+           timeToIdleSeconds="3600"
+           timeToLiveSeconds="0"
+           overflowToDisk="false"
+           statistics="true">
+    </cache>
+
+    <cache name="shiro-activeSessionCache"
+           maxEntriesLocalHeap="2000"
+           eternal="false"
+           timeToIdleSeconds="3600"
+           timeToLiveSeconds="0"
+           overflowToDisk="false"
+           statistics="true">
+    </cache>
+
+</ehcache>
+
+
+RetryLimitHashedCredentialsMatcher.java
+import org.apache.shiro.authc.AuthenticationInfo;
+import org.apache.shiro.authc.AuthenticationToken;
+import org.apache.shiro.authc.ExcessiveAttemptsException;
+import org.apache.shiro.authc.credential.HashedCredentialsMatcher;
+import org.apache.shiro.cache.Cache;
+import org.apache.shiro.cache.CacheManager;
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+
+public class RetryLimitHashedCredentialsMatcher extends HashedCredentialsMatcher {
+
+    private Cache<String, AtomicInteger> passwordRetryCache;
+
+    public RetryLimitHashedCredentialsMatcher(CacheManager cacheManager){
+        passwordRetryCache = cacheManager.getCache("passwordRetryCache");
+    }
+
+    @Override
+    public boolean doCredentialsMatch(AuthenticationToken token, AuthenticationInfo info) {
+        String username = (String) token.getPrincipal();
+
+        //return count+1
+        AtomicInteger retryCount = passwordRetryCache.get(username);
+        if(retryCount == null){
+            retryCount = new AtomicInteger(0);
+            passwordRetryCache.put(username,retryCount);
+        }
+        if(retryCount.incrementAndGet() > 5){
+            throw new ExcessiveAttemptsException();
+        }
+
+        boolean matches = super.doCredentialsMatch(token,info);
+        if(matches){
+            //clear retry count
+            passwordRetryCache.remove(username);
+        }
+
+        return matches;
+    }
+}
+
+UserRealm.java
+import com.lego.pojo.crossexp.auth.Permission;
+import com.lego.pojo.crossexp.auth.Role;
+import com.lego.pojo.crossexp.auth.User_auths;
+import com.lego.service.crossexp.auth.UserService;
+import org.apache.shiro.authc.*;
+import org.apache.shiro.authz.AuthorizationInfo;
+import org.apache.shiro.authz.SimpleAuthorizationInfo;
+import org.apache.shiro.realm.AuthorizingRealm;
+import org.apache.shiro.subject.PrincipalCollection;
+import org.apache.shiro.util.ByteSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class UserRealm extends AuthorizingRealm {
+
+    private static final Logger logger = LoggerFactory.getLogger(UserRealm.class);
+
+    @Autowired
+    private UserService userService;
+
+    /**
+     * 权限校验
+     * @param principals
+     * @return
+     */
+    protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
+        System.out.println("权限校验--执行了doGetAuthorizationInfo...");
+
+        String username = (String) principals.getPrimaryPrincipal();
+
+        SimpleAuthorizationInfo authorizationInfo = new SimpleAuthorizationInfo();
+        //注意这里的setRoles和setStringPermissions需要的都是一个Set<String>类型参数
+        Set<String> role = new HashSet<String>();
+        List<Role> roles = userService.findRoles(username);
+        for (Role r : roles){
+            role.add(r.getRole());
+        }
+        authorizationInfo.setRoles(role);
+        Set<String> permission = new HashSet<String>();
+        List<Permission> permissions = userService.findPermissions(username);
+        for (Permission p : permissions){
+            permission.add(p.getPermission());
+        }
+        authorizationInfo.setStringPermissions(permission);
+
+        return authorizationInfo;
+    }
+
+    /**
+     * 身份校验
+     * @param token
+     * @return
+     * @throws AuthenticationException
+     */
+    protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
+        logger.info("身份校验--执行了goGetAuthenticationInfo...");
+
+        String username = (String) token.getPrincipal();
+
+        User_auths user_auths = userService.selectByIdentifier(username);
+
+        if (user_auths == null) {
+            throw new UnknownAccountException(); //没有找到账号
+        }
+
+        if (Boolean.TRUE.equals(user_auths.isLocked())) {
+            throw new LockedAccountException(); //账号锁定
+        }
+
+        //交给AuthenticationRealm使用CredentialsMatcher进行密码匹配
+        SimpleAuthenticationInfo authenticationInfo = new SimpleAuthenticationInfo(
+                user_auths.getIdentifier(), //用户名
+                user_auths.getCredential(), //密码
+                ByteSource.Util.bytes(user_auths.getCredentialsSalt()), //salt=username+salt
+                getName() //realm name
+        );
+
+        return authenticationInfo;
+    }
+
+    @Override
+    public void clearCachedAuthorizationInfo(PrincipalCollection principals) {
+        super.clearCachedAuthorizationInfo(principals);
+    }
+
+    @Override
+    public void clearCachedAuthenticationInfo(PrincipalCollection principals) {
+        super.clearCachedAuthenticationInfo(principals);
+    }
+
+    @Override
+    public void clearCache(PrincipalCollection principals) {
+        super.clearCache(principals);
+    }
+
+    public void clearAllCachedAuthorizationInfo() {
+        getAuthorizationCache().clear();
+    }
+
+    public void clearAllCachedAuthenticationInfo() {
+        getAuthenticationCache().clear();
+    }
+
+    public void clearAllCache() {
+        clearAllCachedAuthenticationInfo();
+        clearAllCachedAuthorizationInfo();
+    }
+}
+
+springmvc.xml
+<!-- Shiro提供了相应的注解实现权限控制，但是需要AOP功能的支持
+         定义AOP切面，用于代理如@RequiresRole注解的控制器，进行权限控制
+    -->
+    <aop:config proxy-target-class="true"/>
+    <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+        <property name="securityManager" ref="securityManager"/>
+    </bean>
+
+    <!-- 控制器异常处理，用来处理权限、角色验证失败出现的UnauthorizedException异常 -->
+    <bean id="exceptionHandlerExceptionResolver"
+          class="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver">
+    </bean>
+
+    <bean class="com.lego.controller.exception.DefaultExceptionHandler"/>
+
+DefaultExceptionHandler.java
+import org.apache.shiro.authz.UnauthorizedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+
+
+@ControllerAdvice
+public class DefaultExceptionHandler {
+
+    private static Logger log = LoggerFactory.getLogger(DefaultExceptionHandler.class);
+
+    /**
+     * 权限校验失败异常
+     * @param e
+     * @return
+     */
+    @ExceptionHandler({UnauthorizedException.class})
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public void processUnauthenticatedException(UnauthorizedException e) {
+        log.error("您没有相关权限");
+    }
+
+    /**
+     * 400
+     * @param e
+     */
+    @ExceptionHandler({HttpMessageNotReadableException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public void handleHttpMessageNotReadableException(UnauthorizedException e) {
+        log.error("400"+e);
+    }
+
+    /**
+     *  405 - Method Not Allowed
+     * @param e
+     */
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class})
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public void handleHttpRequestMethodNotSupportedException(UnauthorizedException e) {
+        log.error("405"+e);
+    }
+
+    /**
+     * 415 - Unsupported Media Type
+     * @param e
+     */
+    @ExceptionHandler({HttpMediaTypeNotSupportedException.class})
+    @ResponseStatus(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+    public void handleHttpMediaTypeNotSupportedException(UnauthorizedException e) {
+        log.error("415"+e);
+    }
+
+    /**
+     * 500 - Internal Server Error
+     * @param e
+     */
+    @ExceptionHandler({Exception.class})
+    @ResponseStatus(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+    public void handleException(UnauthorizedException e) {
+        log.error("500"+e);
+    }
+
+
+}

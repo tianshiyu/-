@@ -1,0 +1,10 @@
+jdbc连接数据库时错误：The server time zone value '……' is unrecognized的解决
+这是由于数据库和系统时区差异所造成的，mysql-jdbc 6.0以上版本需要在连接数据库url后面指定所在时区。
+解决：中国用的是GMT+8的时区，在jdbc连接的url后面加上东八区的serverTimezone=Asia/Shanghai或serverTimezone=Hongkong或serverTimezone=GMT%2B8（%2B是“+”号）即可解决问题,例如：String url = "jdbc:mysql://localhost:3306/db_book?serverTimezone=Asia/Shanghai";
+
+再一个解决办法就是使用低版本的MySQL jdbc驱动
+
+作者：潮鸣汐落
+链接：https://www.jianshu.com/p/f78cc807e17d
+来源：简书
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。

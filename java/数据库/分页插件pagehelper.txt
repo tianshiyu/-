@@ -1,0 +1,74 @@
+https://blog.csdn.net/sunroyfcb/article/details/80768204?utm_source=blogxgwz3
+
+第一步、导包（或者导入坐标）
+<dependency>
+<groupId>com.github.pagehelper</groupId>
+<artifactId>pagehelper</artifactId>
+<version>5.1.2</version> 
+</dependency>
+第二步、配置到spring 和mybait 整合的配置文件中
+
+注解形式
+@Bean
+	public PageInterceptor getPageInterceptor(){
+		PageInterceptor pageIntercptor=new PageInterceptor();
+		Properties properties=new Properties();
+		properties.setProperty("value", "true");
+		pageIntercptor.setProperties(properties);
+		return pageIntercptor;
+	}
+
+xml文件
+<!--3.创建sqlSessionFactory-->
+<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+	<property name="dataSource" ref="dataSource"></property>
+	<!--配置mybatis 插件-->
+	<property name="plugins">
+		<set>
+			<!--配置pageHelper 分页插件-->
+			<bean class="com.github.pagehelper.PageInterceptor">
+				<property name="properties">
+					<props>
+						<!--方言：-->
+						<prop key="helperDialect">mysql</prop>
+					</props>
+				</property>
+			</bean>
+		</set>
+	</property>
+</bean>
+第三步、方法调用
+使用PageHelper.startPage 静态方法调用startPage ：
+特点：
+1. 静态方法，传递两个参数（当前页码，每页查询条数）
+2. 使用pageHelper 分页的时候，不再关注分页语句，查询全部的语句
+3. 自动的对PageHelper.startPage 方法下的第一个sql 查询进行分页
+
+例：
+page=1;  //第几页
+pageSize=4;  //每页数据量
+//插件的使用
+PageHelper.startPage(page, pageSize);
+List<Apply> applylist = applyService.findapplylist();  //查询数据
+PageInfo<Apply> p = new PageInfo<Apply>(applylist);  //分页插件
+
+model.addAttribute("applylist", applylist);  //直接返回mvc
+model.addAttribute("p", p);                  //加入分页信息
+实例：
+public String findapplylist(Model model, @RequestParam(required = false, defaultValue = "1") Integer page,
+                                @RequestParam(required = false, defaultValue = "6") Integer pageSize) throws Exception {
+        PageHelper.startPage(page, pageSize);
+        List<Apply> applylist = applyService.findapplylist();
+        PageInfo<Apply> p = new PageInfo<Apply>(applylist);
+
+        System.out.println("页数:"+page);
+        System.out.println("每页数据量:"+pageSize);
+        System.out.println(p.getPageNum());
+        System.out.println(p.getPages());
+
+        model.addAttribute("applylist", applylist);
+        model.addAttribute("p", p);
+        model.addAttribute("mainPage", "applylist.jsp");
+        return "admin/main1";
+    }
+

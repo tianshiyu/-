@@ -1,0 +1,48 @@
+
+request
+
+Host: 表示请求的主机名，因为一个服务器上可能运行着多个网站，因此，Host表示浏览器正在请求的域名；
+User-Agent: 标识客户端本身，例如Chrome浏览器的标识类似Mozilla/5.0 ... Chrome/79，IE浏览器的标识类似Mozilla/5.0 (Windows NT ...) like Gecko；
+Accept：表示浏览器能接收的资源类型，如text/*，image/*或者*/*表示所有；
+Accept-Language：表示浏览器偏好的语言，服务器可以据此返回不同语言的网页；
+Accept-Encoding：表示浏览器可以支持的压缩类型，例如gzip, deflate, br。
+Accept-Charset: ISO-8859-1    【浏览器告诉服务器，它支持哪种字符集】
+If-Modified-Since: Tue, 11 Jul 2000 18:23:51 GMT【浏览器告诉服务器，缓存数据的时间】
+Referer: http://www.it315.org/index.jsp【浏览器告诉服务器，客户机是从那个页面来的---反盗链】
+Cookie【浏览器告诉服务器，带来的Cookie是什么】
+Connection: close/Keep-Alive  【浏览器告诉服务器，请求完后是断开链接还是保持链接】
+Date: Tue, 11 Jul 2000 18:23:51 GMT【浏览器告诉服务器，请求的时间】
+Signature-Method: 签名方法
+Signature: 签名
+
+response
+
+Content-Type：表示该响应内容的类型，例如text/html，image/jpeg；
+Content-Length：表示该响应内容的长度（字节数）；
+Content-Language: zh-cn 【服务器告诉浏览器，服务器的语言环境】
+Content-Encoding：表示该响应压缩算法，例如gzip；
+Cache-Control：指示客户端应如何缓存，例如max-age=300表示可以最多缓存300秒。
+Location: /hello  重定向
+Server:apache tomcat【服务器告诉浏览器，服务器的型号是什么】
+Last-Modified: Tue, 11 Jul 2000 18:23:51 GMT【服务器告诉浏览器该资源上次更新时间】
+Refresh: 1;url=http://www.it315.org【服务器告诉浏览器要定时刷新】
+Content-Disposition: attachment; filename=aaa.zip【服务器告诉浏览器以下载方式打开数据】
+Transfer-Encoding: chunked  【服务器告诉浏览器数据以分块方式回送】
+Set-Cookie:SS=Q0=5Lb_nQ; path=/search【服务器告诉浏览器要保存Cookie】
+Expires: -1【服务器告诉浏览器不要设置缓存】
+Cache-Control: no-cache  【服务器告诉浏览器不要设置缓存】
+Pragma: no-cache   【服务器告诉浏览器不要设置缓存】
+Connection: close/Keep-Alive   【服务器告诉浏览器连接方式】
+Date: Tue, 11 Jul 2000 18:23:51 GMT【服务器告诉浏览器回送数据的时间】
+
+
+200 OK：表示成功；
+301 Moved Permanently：表示该URL已经永久重定向；
+302 Found：表示该URL需要临时重定向；
+304 Not Modified：表示该资源没有修改，客户端可以使用本地缓存的版本；
+400 Bad Request：表示客户端发送了一个错误的请求，例如参数无效；
+401 Unauthorized：表示客户端因为身份未验证而不允许访问该URL；
+403 Forbidden：表示服务器因为权限问题拒绝了客户端的请求；
+404 Not Found：表示客户端请求了一个不存在的资源；
+500 Internal Server Error：表示服务器处理时内部出错，例如因为无法连接数据库；
+503 Service Unavailable：表示服务器此刻暂时无法处理请求。

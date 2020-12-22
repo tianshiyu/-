@@ -1,0 +1,7 @@
+IDEA 出现错误：找不到或无法加载主类
+1、可能idea本身缓存问题
+解决：清理缓存重启IDEA
+file-->invalidate Cache/restart
+
+2、设置一下file-->project structure-->Module：
+paths里面的编译路径Complier output：

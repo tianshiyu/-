@@ -1,0 +1,6 @@
+
+ajax请求不能自动进行重定向
+重定向代码：window.location.href
+
+$.ajax 默认返回json格式，浏览器自动解析为对象
+
